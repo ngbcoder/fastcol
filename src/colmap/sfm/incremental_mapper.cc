@@ -244,10 +244,12 @@ bool IncrementalMapper::RegisterNextImage(const Options& options,
   reg_stats_.num_reg_trials[image_id] += 1;
 
   // Check if enough 2D-3D correspondences.
-  if (obs_manager_->NumVisiblePoints3D(image_id) <
+  const size_t num_visible_points3D =
+      obs_manager_->NumVisiblePoints3D(image_id);
+  if (num_visible_points3D <
       static_cast<size_t>(options.abs_pose_min_num_inliers)) {
     VLOG(2) << "Image observes insufficient number of points for registration ("
-            << obs_manager_->NumVisiblePoints3D(image_id) << " < "
+            << num_visible_points3D << " < "
             << options.abs_pose_min_num_inliers << ")";
     return false;
   }
@@ -259,6 +261,9 @@ bool IncrementalMapper::RegisterNextImage(const Options& options,
   std::vector<std::pair<point2D_t, point3D_t>> tri_corrs;
   std::vector<Eigen::Vector2d> tri_points2D;
   std::vector<Eigen::Vector3d> tri_points3D;
+  tri_corrs.reserve(image.NumPoints2D());
+  tri_points2D.reserve(image.NumPoints2D());
+  tri_points3D.reserve(image.NumPoints2D());
 
   const std::shared_ptr<const CorrespondenceGraph> correspondence_graph =
       database_cache_->CorrespondenceGraph();
@@ -476,6 +481,15 @@ bool IncrementalMapper::RegisterNextGeneralFrame(const Options& options,
   std::vector<Eigen::Vector3d> tri_points3D;
   std::vector<size_t> tri_camera_idxs;
 
+  size_t num_frame_points2D = 0;
+  for (const data_t& data_id : frame.ImageIds()) {
+    num_frame_points2D += reconstruction_->Image(data_id.id).NumPoints2D();
+  }
+  tri_corrs.reserve(num_frame_points2D);
+  tri_points2D.reserve(num_frame_points2D);
+  tri_points3D.reserve(num_frame_points2D);
+  tri_camera_idxs.reserve(num_frame_points2D);
+
   std::vector<Rigid3d> cams_from_rig;
   cams_from_rig.reserve(frame.RigPtr()->NumSensors());
   std::vector<Camera> cameras;
@@ -681,8 +695,16 @@ bool IncrementalMapper::RegisterNextStructureLessImage(const Options& options,
   std::vector<Rigid3d> world_cams_from_world;
   std::vector<Camera> world_cameras;
   FlatHashMap<image_t, size_t> world_image_id_to_camera_idx;
-
   const point2D_t num_points2D = image.NumPoints2D();
+  point2D_idxs.reserve(num_points2D);
+  corrs.reserve(num_points2D);
+  points2D.reserve(num_points2D);
+  world_points2D.reserve(num_points2D);
+  world_camera_idxs.reserve(num_points2D);
+  world_cams_from_world.reserve(num_points2D);
+  world_cameras.reserve(num_points2D);
+  world_image_id_to_camera_idx.reserve(num_points2D);
+
   for (point2D_t point2D_idx = 0; point2D_idx < num_points2D; ++point2D_idx) {
     const Point2D& point2D = image.Point2D(point2D_idx);
 
